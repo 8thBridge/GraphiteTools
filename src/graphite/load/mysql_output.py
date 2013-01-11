@@ -1,4 +1,5 @@
 import sys
+from warnings import filterwarnings
 
 import MySQLdb
 
@@ -53,6 +54,9 @@ TABLES.append(('action',
 )
 
 
+filterwarnings("ignore", category=MySQLdb.Warning)
+
+
 class MySQLOutput(AbstractOutputFormat):
 	def __init__(self, host=None, port=None, db=None, user=None, password=None):
 		# The MySQLdb.connect() function acts weird if we send it None kwargs
@@ -60,6 +64,7 @@ class MySQLOutput(AbstractOutputFormat):
 		for name, value in self.conn_kwargs.items():
 			if value is None:
 				del self.conn_kwargs[name]
+		self.conn_kwargs.setdefault("charset", "utf8")
 		self.conn = MySQLdb.connect(**self.conn_kwargs)
 		self.create_tables()
 		self.conn.close()
@@ -76,10 +81,14 @@ class MySQLOutput(AbstractOutputFormat):
 			self.conn.commit()
 
 	def user_insert(self, id, node):
-		self.cursor.execute("INSERT INTO user VALUES (?, ?, ?, ?, ?)", (id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
+		self.cursor.execute("""
+			REPLACE INTO user(user_id, name, username, first_name, last_name)
+			VALUES (%s, %s, %s, %s, %s)
+			""",
+			(id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
 
 	def friend_edge_insert(self, id, friend):
-		self.cursor.execute("INSERT INTO friend VALUES (?, ?)", [id, friend])
+		self.cursor.execute("INSERT IGNORE INTO friend VALUES (%s, %s)", [id, friend])
 
 	def complete(self):
 		self.conn.close()
