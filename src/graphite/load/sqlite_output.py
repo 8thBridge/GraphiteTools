@@ -80,6 +80,9 @@ class SqliteOutput(AbstractOutputFormat):
 	def friend_edge_insert(self, id, friend):
 		self.cursor.execute("INSERT INTO friend VALUES (?, ?)", [id, friend])
 
+	def commit(self):
+		self.conn.commit()
+
 	def complete(self):
 		self.conn.close()
 

@@ -54,6 +54,10 @@ class CSVOutput(AbstractOutputFormat):
 		except Exception as e:
 			print >> sys.stderr, "failed to write row", row, e
 
+	def commit(self):
+		if self.auto_flush:
+			self.stream.flush()
+
 	def complete(self):
 		if self.auto_flush:
 			self.stream.flush()

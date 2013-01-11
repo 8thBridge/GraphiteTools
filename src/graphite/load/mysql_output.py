@@ -68,28 +68,40 @@ class MySQLOutput(AbstractOutputFormat):
 		self.conn = MySQLdb.connect(**self.conn_kwargs)
 		self.create_tables()
 		self.conn.close()
+		self.user_inserts = []
+		self.friend_inserts = []
 
 	def start(self, node_type):
 		self.conn = MySQLdb.connect(**self.conn_kwargs)
+		self.conn.autocommit(False)
 		self.cursor = self.conn.cursor()
+		self.user_inserts = []
+		self.friend_inserts = []
 
 	def handle(self, node_type, id, node):
 		if node_type is NODE_TYPE_USER:
 			self.user_insert(id, node)
 			for friend in node.get("friends", []):
 				self.friend_edge_insert(id, friend)
-			self.conn.commit()
 
 	def user_insert(self, id, node):
-		self.cursor.execute("""
-			REPLACE INTO user(user_id, name, username, first_name, last_name)
-			VALUES (%s, %s, %s, %s, %s)
-			""",
-			(id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
+		self.user_inserts.append((id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
 
 	def friend_edge_insert(self, id, friend):
-		self.cursor.execute("INSERT IGNORE INTO friend VALUES (%s, %s)", [id, friend])
+		self.friend_inserts.append((id, friend))
 
+	def commit(self):
+		# MySQLdb runs *much* faster if we use executemany() to bulk insert.
+		self.cursor.execute("BEGIN")
+		if self.user_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO user(user_id, name, username, first_name, last_name)
+				VALUES (%s, %s, %s, %s, %s)
+				""", self.user_inserts)
+		if self.friend_inserts:
+			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
+		self.cursor.execute("COMMIT")
+		
 	def complete(self):
 		self.conn.close()
 

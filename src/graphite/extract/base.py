@@ -11,6 +11,7 @@ class IGAPIExtractor(object):
 		"API_HOST": "api.strcst.net",
 		"API_VERSION": "v1",
 		"pages_to_load": 0,
+		"limit_per_page": 25,
 	}
 
 	def __init__(self, **options):
@@ -18,21 +19,24 @@ class IGAPIExtractor(object):
 
 	def _load_feed(self, feed):
 		url = "https://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
-		return self._load_data_from(url + feed, feed)
+		url += feed
+		url += "?bl=%d" % self._options["limit_per_page"] 
+		return self._load_data_from(url, feed)
 
 	def _load_data_from(self, url, feed):
 		print >> sys.stderr, url, feed
 		response = requests.get(url)
 		if response.status_code == 200:
-			if response.json.get("status") == "OK":
+			json = response.json()
+			if json.get("status") == "OK":
 				if feed == "users" or feed == "actions":
-					return response.json.get("users", []), response.json.get("next")
+					return json.get("users", []), json.get("next")
 				elif feed == "objects":
-					return response.json.get("objects", []), response.json.get("next")
+					return json.get("objects", []), json.get("next")
 				else:
 					print >> sys.stderr, "feed was not what we thought", feed
 			else:
-				print >> sys.stderr, "unexpected status code", response.json.get("status")
+				print >> sys.stderr, "unexpected status code", json.get("status")
 		else:
 			print >> sys.stderr, "unexpected response code", response.status_code
 		return [], None
@@ -46,7 +50,7 @@ class IGAPIExtractor(object):
 		pages_to_load = self._options.get("pages_to_load", 0)
 		while next and len(data)>0:
 			print >> sys.stderr, "loading another page"
-			data, next = self._load_data_from(next, "users")
+			data, next = self._load_data_from(next + "&bl=%d" % self._options["limit_per_page"], "users")
 			self.process_set(NODE_TYPE_USER, data, transformer, output)
 			pages_loaded += 1
 
@@ -103,3 +107,4 @@ class IGAPIExtractor(object):
 
 					for item in result:
 						output.handle(type, id, item)
+		output.commit()
