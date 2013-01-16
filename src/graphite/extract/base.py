@@ -2,7 +2,7 @@
 IGAPIExtractor loads data from the 8thBridge Graphite Interest Graph API. By default all data is laoded, you can optionaly pass in an offset to only load data that is newer than the offset.
 """
 import requests
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT
+from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD
 import sys
 
 
@@ -29,10 +29,10 @@ class IGAPIExtractor(object):
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":
-				if feed == "users" or feed == "actions":
+				if feed in ["users", "objects", "user_boards"]:
+					return json.get(feed, []), json.get("next")
+				elif feed == "actions":
 					return json.get("users", []), json.get("next")
-				elif feed == "objects":
-					return json.get("objects", []), json.get("next")
 				else:
 					print >> sys.stderr, "feed was not what we thought", feed
 			else:
@@ -42,52 +42,28 @@ class IGAPIExtractor(object):
 		return [], None
 
 	def load_users_into(self, transformer, output):
-		print >> sys.stderr, ".. loading users feed"
-		output.start(NODE_TYPE_USER)
-		data, next = self._load_feed("users")
-		self.process_set(NODE_TYPE_USER, data, transformer, output)
-		pages_loaded = 0
-		pages_to_load = self._options.get("pages_to_load", 0)
-		while next and len(data)>0:
-			print >> sys.stderr, "loading another page"
-			data, next = self._load_data_from(next + "&bl=%d" % self._options["limit_per_page"], "users")
-			self.process_set(NODE_TYPE_USER, data, transformer, output)
-			pages_loaded += 1
-
-			if pages_to_load > 0 and pages_to_load >= pages_loaded:
-				# limiter
-				next = None
-		output.complete()
+		self._load_feed_into("users", NODE_TYPE_USER, transformer, output)
 
 	def load_objects_into(self, transformer, output):
-		print >> sys.stderr, ".. loading users feed"
-		output.start(NODE_TYPE_OBJECT)
-		data, next = self._load_feed("objects")
-		self.process_set(NODE_TYPE_OBJECT, data, transformer, output)
-		pages_loaded = 0
-		pages_to_load = self._options.get("pages_to_load", 0)
-		while next and len(data)>0:
-			print >> sys.stderr, "loading another page"
-			data, next = self._load_data_from(next, "objects")
-			self.process_set(NODE_TYPE_OBJECT, data, transformer, output)
-			pages_loaded += 1
-
-			if pages_to_load > 0 and pages_to_load >= pages_loaded:
-				# limiter
-				next = None
-		output.complete()
+		self._load_feed_into("objects", NODE_TYPE_OBJECT, transformer, output)
 
 	def load_actions_into(self, transformer, output):
-		print >> sys.stderr, ".. loading actions feed"
-		output.start(NODE_TYPE_ACTION)
-		data, next = self._load_feed("actions")
-		self.process_set(NODE_TYPE_ACTION, data, transformer, output)
+		self._load_feed_into("actions", NODE_TYPE_ACTION, transformer, output)
+
+	def load_user_boards_into(self, transformer, output):
+		self._load_feed_into("user_boards", NODE_TYPE_USER_BOARD, transformer, output)
+		
+	def _load_feed_into(self, feed, node_type, transformer, output):
+		print >> sys.stderr, ".. loading %s feed" % feed
+		output.start(node_type)
+		data, next = self._load_feed(feed)
+		self.process_set(node_type, data, transformer, output)
 		pages_loaded = 0
 		pages_to_load = self._options.get("pages_to_load", 0)
 		while next and len(data)>0:
 			print >> sys.stderr, "loading another page"
-			data, next = self._load_data_from(next, "actions")
-			self.process_set(NODE_TYPE_ACTION, data, transformer, output)
+			data, next = self._load_data_from(next + "&bl=%d" % self._options["limit_per_page"], feed)
+			self.process_set(node_type, data, transformer, output)
 			pages_loaded += 1
 
 			if pages_to_load > 0 and pages_to_load >= pages_loaded:
