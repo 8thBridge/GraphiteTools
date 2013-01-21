@@ -2,7 +2,7 @@
 IGAPIExtractor loads data from the 8thBridge Graphite Interest Graph API. By default all data is laoded, you can optionaly pass in an offset to only load data that is newer than the offset.
 """
 import requests
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD
+from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_FOLLOW
 import sys
 
 
@@ -18,7 +18,7 @@ class IGAPIExtractor(object):
 		self._options.update(options)
 
 	def _load_feed(self, feed):
-		url = "https://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
+		url = "http://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
 		url += feed
 		url += "?bl=%d" % self._options["limit_per_page"] 
 		return self._load_data_from(url, feed)
@@ -33,6 +33,8 @@ class IGAPIExtractor(object):
 					return json.get(feed, []), json.get("next")
 				elif feed == "actions":
 					return json.get("users", []), json.get("next")
+				elif feed == "curate_follows":
+					return json.get("follows", []), json.get("next")
 				else:
 					print >> sys.stderr, "feed was not what we thought", feed
 			else:
@@ -52,7 +54,10 @@ class IGAPIExtractor(object):
 
 	def load_user_boards_into(self, transformer, output):
 		self._load_feed_into("user_boards", NODE_TYPE_USER_BOARD, transformer, output)
-		
+
+	def load_follows_into(self, transformer, output):
+		self._load_feed_into("curate_follows", NODE_TYPE_FOLLOW, transformer, output)
+
 	def _load_feed_into(self, feed, node_type, transformer, output):
 		print >> sys.stderr, ".. loading %s feed" % feed
 		output.start(node_type)

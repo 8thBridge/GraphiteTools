@@ -5,6 +5,7 @@ import MySQLdb
 
 from graphite.load import AbstractOutputFormat
 from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_USER_BOARD
+from graphite import NODE_TYPE_FOLLOW
 
 
 # TODO: create a meta schema object that can be shared by all outputs
@@ -71,6 +72,15 @@ TABLES.append(('user_board_object',
 	")")
 )
 
+TABLES.append(('follow',
+	"CREATE TABLE IF NOT EXISTS `follow` ("
+	"  `user_id` CHAR(24) NOT NULL,"
+	"  `follower_id` CHAR(24) NOT NULL,"
+	"  `created` TIMESTAMP NOT NULL,"
+	"  `deleted` TIMESTAMP NULL,"
+	"  UNIQUE (`user_id`, `follower_id`)"
+	")")
+)
 
 filterwarnings("ignore", category=MySQLdb.Warning)
 
@@ -83,19 +93,23 @@ class MySQLOutput(AbstractOutputFormat):
 			if value is None:
 				del self.conn_kwargs[name]
 		self.conn_kwargs.setdefault("charset", "utf8")
-		self.conn = MySQLdb.connect(**self.conn_kwargs)
+		self.conn = self.new_conn()
 		self.create_tables()
 		self.conn.close()
 		self.reset()
+	
+	def new_conn(self):
+		return MySQLdb.connect(**self.conn_kwargs)
 	
 	def reset(self):
 		self.user_inserts = []
 		self.friend_inserts = []
 		self.user_board_inserts = []
 		self.user_board_object_inserts = []
+		self.follow_inserts = []
 
 	def start(self, node_type):
-		self.conn = MySQLdb.connect(**self.conn_kwargs)
+		self.conn = self.new_conn()
 		self.conn.autocommit(False)
 		self.cursor = self.conn.cursor()
 		self.reset()
@@ -109,6 +123,8 @@ class MySQLOutput(AbstractOutputFormat):
 			self.user_board_insert(id, node)
 			for object_id in node.get("object_ids", []):
 				self.user_board_object_insert(id, object_id)
+		elif node_type is NODE_TYPE_FOLLOW:
+			self.follow_insert(id, node)
 
 	def user_insert(self, id, node):
 		self.user_inserts.append((id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
@@ -122,6 +138,9 @@ class MySQLOutput(AbstractOutputFormat):
 	def user_board_object_insert(self, id, object_id):
 		self.user_board_object_inserts.append((id, object_id))
 
+	def follow_insert(self, id, node):
+		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
+		
 	def commit(self):
 		# MySQLdb runs *much* faster if we use executemany() to bulk insert.
 		self.cursor.execute("BEGIN")
@@ -139,6 +158,11 @@ class MySQLOutput(AbstractOutputFormat):
 				""", self.user_board_inserts)
 		if self.user_board_object_inserts:
 			self.cursor.executemany("INSERT IGNORE INTO user_board_object VALUES (%s, %s)", self.user_board_object_inserts)
+		if self.follow_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO follow(user_id, follower_id, created, deleted)
+				VALUES (%s, %s, %s, %s)
+				""", self.follow_inserts)
 		self.cursor.execute("COMMIT")
 		self.reset()
 		
