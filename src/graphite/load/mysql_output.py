@@ -4,7 +4,7 @@ from warnings import filterwarnings
 import MySQLdb
 
 from graphite.load import AbstractOutputFormat
-from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_USER_BOARD
+from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD
 from graphite import NODE_TYPE_FOLLOW
 
 
@@ -82,6 +82,19 @@ TABLES.append(('follow',
 	")")
 )
 
+TABLES.append(('user_board_action',
+	"CREATE TABLE IF NOT EXISTS `user_board_action` ("
+	"  `board_id` CHAR(24) NOT NULL,"
+	"  `user_id` BIGINT UNSIGNED NOT NULL,"
+	"  `object_id` CHAR(24) NULL,"
+	"  `action` varchar(32) NOT NULL,"
+	"  `created` TIMESTAMP NOT NULL,"
+	"  `deleted` TIMESTAMP NULL,"
+	"  UNIQUE (`board_id`, `user_id`, `object_id`, `action`)"
+	")")
+)
+
+
 filterwarnings("ignore", category=MySQLdb.Warning)
 
 
@@ -107,6 +120,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.user_board_inserts = []
 		self.user_board_object_inserts = []
 		self.follow_inserts = []
+		self.user_board_action_inserts = []
 
 	def start(self, node_type):
 		self.conn = self.new_conn()
@@ -119,6 +133,8 @@ class MySQLOutput(AbstractOutputFormat):
 			self.user_insert(id, node)
 			for friend in node.get("friends", []):
 				self.friend_edge_insert(id, friend)
+		elif node_type is NODE_TYPE_ACTION and "board_id" in node:
+			self.user_board_action_insert(id, node)
 		elif node_type is NODE_TYPE_USER_BOARD:
 			self.user_board_insert(id, node)
 			for object_id in node.get("object_ids", []):
@@ -137,6 +153,9 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def user_board_object_insert(self, id, object_id):
 		self.user_board_object_inserts.append((id, object_id))
+
+	def user_board_action_insert(self, id, node):
+		self.user_board_action_inserts.append((node["board_id"], node.get("uid", ""), node.get("oid"), node.get("action", ""), node.get("created"), node.get("deleted")))
 
 	def follow_insert(self, id, node):
 		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
@@ -158,6 +177,11 @@ class MySQLOutput(AbstractOutputFormat):
 				""", self.user_board_inserts)
 		if self.user_board_object_inserts:
 			self.cursor.executemany("INSERT IGNORE INTO user_board_object VALUES (%s, %s)", self.user_board_object_inserts)
+		if self.user_board_action_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO user_board_action(board_id, user_id, object_id, action, created, deleted)
+				VALUES (%s, %s, %s, %s, %s, %s)
+				""", self.user_board_action_inserts)
 		if self.follow_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO follow(user_id, follower_id, created, deleted)

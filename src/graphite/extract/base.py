@@ -18,7 +18,7 @@ class IGAPIExtractor(object):
 		self._options.update(options)
 
 	def _load_feed(self, feed):
-		url = "http://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
+		url = "https://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
 		url += feed
 		url += "?bl=%d" % self._options["limit_per_page"] 
 		return self._load_data_from(url, feed)
