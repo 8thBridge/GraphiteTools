@@ -132,6 +132,9 @@ class MySQLOutput(AbstractOutputFormat):
 		if node_type is NODE_TYPE_USER:
 			self.user_insert(id, node)
 			for friend in node.get("friends", []):
+				# Where are these values coming from?
+				if isinstance(friend, dict):
+					friend = friend["id"]
 				self.friend_edge_insert(id, friend)
 		elif node_type is NODE_TYPE_ACTION and "board_id" in node:
 			self.user_board_action_insert(id, node)
