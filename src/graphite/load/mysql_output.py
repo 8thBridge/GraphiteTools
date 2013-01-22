@@ -12,7 +12,8 @@ from graphite import NODE_TYPE_FOLLOW
 TABLES = []
 TABLES.append(('user',
 	"CREATE TABLE IF NOT EXISTS `user` ("
-	"  `user_id` BIGINT UNSIGNED NOT NULL,"
+	"  `user_id` CHAR(24) NOT NULL,"
+	"  `facebook_id` BIGINT UNSIGNED NULL,"
 	"  `name` varchar(128),"
 	"  `username` varchar(128),"
 	"  `first_name` varchar(128),"
@@ -24,7 +25,7 @@ TABLES.append(('user',
 )
 TABLES.append(('friend',
 	"CREATE TABLE IF NOT EXISTS `friend` ("
-	"  `user_id` BIGINT UNSIGNED NOT NULL,"
+	"  `user_id` CHAR(24) NOT NULL,"
 	"  `friend_id` BIGINT UNSIGNED NOT NULL,"
 	"  UNIQUE (`user_id`, `friend_id`)"
 	")")
@@ -33,7 +34,6 @@ TABLES.append(('friend',
 TABLES.append(('object',
 	"CREATE TABLE IF NOT EXISTS `object` ("
 	"  `id` CHAR(24) NOT NULL,"
-	"  `friend_id` BIGINT UNSIGNED NOT NULL,"
 	"  `url` varchar(512),"
 	"  `image` varchar(512),"
 	"  `title` varchar(512),"
@@ -44,9 +44,9 @@ TABLES.append(('object',
 
 TABLES.append(('action',
 	"CREATE TABLE IF NOT EXISTS `action` ("
-	"  `id` BIGINT UNSIGNED NOT NULL,"
-	"  `user_id` BIGINT UNSIGNED NOT NULL,"
-	"  `object_id` BIGINT UNSIGNED NOT NULL,"
+	"  `id` CHAR(24) NOT NULL,"
+	"  `user_id` CHAR(24) NOT NULL,"
+	"  `object_id` CHAR(24) NOT NULL,"
 	"  `created` TIMESTAMP,"
 	"  `deleted` TIMESTAMP,"
 	"  `action` varchar(32),"
@@ -85,7 +85,7 @@ TABLES.append(('follow',
 TABLES.append(('user_board_action',
 	"CREATE TABLE IF NOT EXISTS `user_board_action` ("
 	"  `board_id` CHAR(24) NOT NULL,"
-	"  `user_id` BIGINT UNSIGNED NOT NULL,"
+	"  `user_id` CHAR(24) NOT NULL,"
 	"  `object_id` CHAR(24) NULL,"
 	"  `action` varchar(32) NOT NULL,"
 	"  `created` TIMESTAMP NOT NULL,"
@@ -146,7 +146,7 @@ class MySQLOutput(AbstractOutputFormat):
 			self.follow_insert(id, node)
 
 	def user_insert(self, id, node):
-		self.user_inserts.append((id, node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
+		self.user_inserts.append((id, node.get("fbid", ""), node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
 
 	def friend_edge_insert(self, id, friend):
 		self.friend_inserts.append((id, friend))
@@ -168,8 +168,8 @@ class MySQLOutput(AbstractOutputFormat):
 		self.cursor.execute("BEGIN")
 		if self.user_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO user(user_id, name, username, first_name, last_name)
-				VALUES (%s, %s, %s, %s, %s)
+				REPLACE INTO user(user_id, facebook_id, name, username, first_name, last_name)
+				VALUES (%s, %s, %s, %s, %s, %s)
 				""", self.user_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
