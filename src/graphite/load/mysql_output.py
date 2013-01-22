@@ -4,7 +4,7 @@ from warnings import filterwarnings
 import MySQLdb
 
 from graphite.load import AbstractOutputFormat
-from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD
+from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD
 from graphite import NODE_TYPE_FOLLOW
 
 
@@ -117,6 +117,7 @@ class MySQLOutput(AbstractOutputFormat):
 	def reset(self):
 		self.user_inserts = []
 		self.friend_inserts = []
+		self.object_inserts = []
 		self.user_board_inserts = []
 		self.user_board_object_inserts = []
 		self.follow_inserts = []
@@ -136,6 +137,8 @@ class MySQLOutput(AbstractOutputFormat):
 				if isinstance(friend, dict):
 					friend = friend["id"]
 				self.friend_edge_insert(id, friend)
+		elif node_type is NODE_TYPE_OBJECT:
+			self.object_insert(id, node)
 		elif node_type is NODE_TYPE_ACTION and "board_id" in node:
 			self.user_board_action_insert(id, node)
 		elif node_type is NODE_TYPE_USER_BOARD:
@@ -150,6 +153,9 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def friend_edge_insert(self, id, friend):
 		self.friend_inserts.append((id, friend))
+
+	def object_insert(self, id, node):
+		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("updated", "")))
 
 	def user_board_insert(self, id, node):
 		self.user_board_inserts.append((id, node.get("name", ""), node.get("user_id", ""), node.get("created"), node.get("deleted")))
@@ -173,6 +179,11 @@ class MySQLOutput(AbstractOutputFormat):
 				""", self.user_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
+		if self.object_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO object(id, url, image, title, ts)
+				VALUES (%s, %s, %s, %s, %s)
+				""", self.object_inserts)
 		if self.user_board_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO user_board(id, name, user_id, created, deleted)
