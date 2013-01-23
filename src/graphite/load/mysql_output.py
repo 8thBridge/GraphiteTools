@@ -19,6 +19,12 @@ TABLES.append(('user',
 	"  `first_name` varchar(128),"
 	"  `last_name` varchar(128),"
 	"  `profile_image` varchar(512),"
+	"  `hometown` varchar(128),"
+	"  `location` varchar(128),"
+	"  `email` varchar(128),"
+	"  `gender` varchar(10),"
+	"  `birthday` date,"
+	"  `is_user` bit,"
 	"  `ts` TIMESTAMP,"
 	"  PRIMARY KEY (`user_id`)"
 	")")
@@ -149,7 +155,9 @@ class MySQLOutput(AbstractOutputFormat):
 			self.follow_insert(id, node)
 
 	def user_insert(self, id, node):
-		self.user_inserts.append((id, node.get("fbid", ""), node.get("name", ""), node.get("username", ""), node.get("first_name", ""), node.get("last_name", "")))
+		fbid = node.get("fbid")
+		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
+		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location"), node.get("email"), node.get("gender"), node.get("birthday"), node.get("is_user")))
 
 	def friend_edge_insert(self, id, friend):
 		self.friend_inserts.append((id, friend))
@@ -174,8 +182,8 @@ class MySQLOutput(AbstractOutputFormat):
 		self.cursor.execute("BEGIN")
 		if self.user_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO user(user_id, facebook_id, name, username, first_name, last_name)
-				VALUES (%s, %s, %s, %s, %s, %s)
+				REPLACE INTO user(user_id, facebook_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday, is_user)
+				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				""", self.user_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
