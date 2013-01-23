@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 from warnings import filterwarnings
 
 import MySQLdb
@@ -157,6 +158,8 @@ class MySQLOutput(AbstractOutputFormat):
 	def user_insert(self, id, node):
 		fbid = node.get("fbid")
 		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
+		birthday = node.get("birthday")
+		birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
 		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location"), node.get("email"), node.get("gender"), node.get("birthday"), node.get("is_user")))
 
 	def friend_edge_insert(self, id, friend):
