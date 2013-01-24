@@ -2,7 +2,7 @@
 IGAPIExtractor loads data from the 8thBridge Graphite Interest Graph API. By default all data is laoded, you can optionaly pass in an offset to only load data that is newer than the offset.
 """
 import requests
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_FOLLOW
+from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW
 import sys
 
 
@@ -29,7 +29,7 @@ class IGAPIExtractor(object):
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":
-				if feed in ["users", "objects", "user_boards"]:
+				if feed in ["users", "objects", "user_boards", "brand_boards"]:
 					return json.get(feed, []), json.get("next")
 				elif feed == "actions":
 					return json.get("users", []), json.get("next")
@@ -54,6 +54,9 @@ class IGAPIExtractor(object):
 
 	def load_user_boards_into(self, transformer, output):
 		self._load_feed_into("user_boards", NODE_TYPE_USER_BOARD, transformer, output)
+
+	def load_brand_boards_into(self, transformer, output):
+		self._load_feed_into("brand_boards", NODE_TYPE_BRAND_BOARD, transformer, output)
 
 	def load_follows_into(self, transformer, output):
 		self._load_feed_into("curate_follows", NODE_TYPE_FOLLOW, transformer, output)

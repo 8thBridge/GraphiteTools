@@ -5,7 +5,7 @@ from warnings import filterwarnings
 import MySQLdb
 
 from graphite.load import AbstractOutputFormat
-from graphite.extract.base import NODE_TYPE_USER, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD
+from graphite import NODE_TYPE_USER, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD
 from graphite import NODE_TYPE_FOLLOW
 
 
@@ -51,28 +51,28 @@ TABLES.append(('object',
 
 TABLES.append(('action',
 	"CREATE TABLE IF NOT EXISTS `action` ("
-	"  `id` CHAR(24) NOT NULL,"
 	"  `user_id` CHAR(24) NOT NULL,"
 	"  `object_id` CHAR(24) NOT NULL,"
-	"  `created` TIMESTAMP,"
-	"  `deleted` TIMESTAMP,"
-	"  `action` varchar(32),"
-	"  PRIMARY KEY (`id`)"
+	"  `action` varchar(32) NOT NULL,"
+	"  `created` TIMESTAMP NOT NULL,"
+	"  `deleted` TIMESTAMP NULL,"
+	"  UNIQUE (`user_id`, `object_id`, `action`)"
 	")")
 )
 
-TABLES.append(('user_board',
-	"CREATE TABLE IF NOT EXISTS `user_board` ("
+TABLES.append(('board',
+	"CREATE TABLE IF NOT EXISTS `board` ("
 	"  `id` CHAR(24) NOT NULL,"
-	"  `name` varchar(128),"
-	"  `user_id` CHAR(24) NOT NULL,"
-	"  `created` TIMESTAMP NOT NULL,"
+	"  `is_brand_board` BIT NOT NULL,"
+	"  `name` VARCHAR(128) NOT NULL,"
+	"  `user_id` CHAR(24) NULL,"
+	"  `created` TIMESTAMP NULL,"
 	"  `deleted` TIMESTAMP NULL,"
 	"  PRIMARY KEY (`id`)"
 	")")
 )
-TABLES.append(('user_board_object',
-	"CREATE TABLE IF NOT EXISTS `user_board_object` ("
+TABLES.append(('board_object',
+	"CREATE TABLE IF NOT EXISTS `board_object` ("
 	"  `board_id` CHAR(24) NOT NULL,"
 	"  `object_id` CHAR(24) NOT NULL,"
 	"  UNIQUE (`board_id`, `object_id`)"
@@ -89,8 +89,8 @@ TABLES.append(('follow',
 	")")
 )
 
-TABLES.append(('user_board_action',
-	"CREATE TABLE IF NOT EXISTS `user_board_action` ("
+TABLES.append(('board_action',
+	"CREATE TABLE IF NOT EXISTS `board_action` ("
 	"  `board_id` CHAR(24) NOT NULL,"
 	"  `user_id` CHAR(24) NOT NULL,"
 	"  `object_id` CHAR(24) NULL,"
@@ -125,10 +125,11 @@ class MySQLOutput(AbstractOutputFormat):
 		self.user_inserts = []
 		self.friend_inserts = []
 		self.object_inserts = []
-		self.user_board_inserts = []
-		self.user_board_object_inserts = []
+		self.action_inserts = []
+		self.board_inserts = []
+		self.board_object_inserts = []
 		self.follow_inserts = []
-		self.user_board_action_inserts = []
+		self.board_action_inserts = []
 
 	def start(self, node_type):
 		self.conn = self.new_conn()
@@ -146,12 +147,15 @@ class MySQLOutput(AbstractOutputFormat):
 				self.friend_edge_insert(id, friend)
 		elif node_type is NODE_TYPE_OBJECT:
 			self.object_insert(id, node)
-		elif node_type is NODE_TYPE_ACTION and "board_id" in node:
-			self.user_board_action_insert(id, node)
-		elif node_type is NODE_TYPE_USER_BOARD:
-			self.user_board_insert(id, node)
+		elif node_type is NODE_TYPE_ACTION:
+			if "board_id" in node:
+				self.board_action_insert(id, node)
+			else:
+				self.action_insert(id, node)
+		elif node_type in [NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD]:
+			self.board_insert(id, node,  node_type is NODE_TYPE_BRAND_BOARD)
 			for object_id in node.get("object_ids", []):
-				self.user_board_object_insert(id, object_id)
+				self.board_object_insert(id, object_id)
 		elif node_type is NODE_TYPE_FOLLOW:
 			self.follow_insert(id, node)
 
@@ -171,14 +175,17 @@ class MySQLOutput(AbstractOutputFormat):
 	def object_insert(self, id, node):
 		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("updated", "")))
 
-	def user_board_insert(self, id, node):
-		self.user_board_inserts.append((id, node.get("name", ""), node.get("user_id", ""), node.get("created"), node.get("deleted")))
+	def action_insert(self, id, node):
+		self.action_inserts.append((node["uid"], node["oid"], node["action"], node["created"], node.get("deleted")))
 
-	def user_board_object_insert(self, id, object_id):
-		self.user_board_object_inserts.append((id, object_id))
+	def board_insert(self, id, node, is_brand_board):
+		self.board_inserts.append((id, is_brand_board, node["name"], node.get("user_id"), node.get("created"), node.get("deleted")))
 
-	def user_board_action_insert(self, id, node):
-		self.user_board_action_inserts.append((node["board_id"], node.get("uid", ""), node.get("oid"), node.get("action", ""), node.get("created"), node.get("deleted")))
+	def board_object_insert(self, id, object_id):
+		self.board_object_inserts.append((id, object_id))
+
+	def board_action_insert(self, id, node):
+		self.board_action_inserts.append((node["board_id"], node["uid"], node.get("oid"), node["action"], node["created"], node.get("deleted")))
 
 	def follow_insert(self, id, node):
 		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
@@ -198,18 +205,23 @@ class MySQLOutput(AbstractOutputFormat):
 				REPLACE INTO object(id, url, image, title, ts)
 				VALUES (%s, %s, %s, %s, %s)
 				""", self.object_inserts)
-		if self.user_board_inserts:
+		if self.action_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO user_board(id, name, user_id, created, deleted)
+				REPLACE INTO action(user_id, object_id, action, created, deleted)
 				VALUES (%s, %s, %s, %s, %s)
-				""", self.user_board_inserts)
-		if self.user_board_object_inserts:
-			self.cursor.executemany("INSERT IGNORE INTO user_board_object VALUES (%s, %s)", self.user_board_object_inserts)
-		if self.user_board_action_inserts:
+				""", self.action_inserts)
+		if self.board_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO user_board_action(board_id, user_id, object_id, action, created, deleted)
+				REPLACE INTO board(id, is_brand_board, name, user_id, created, deleted)
 				VALUES (%s, %s, %s, %s, %s, %s)
-				""", self.user_board_action_inserts)
+				""", self.board_inserts)
+		if self.board_object_inserts:
+			self.cursor.executemany("INSERT IGNORE INTO board_object VALUES (%s, %s)", self.board_object_inserts)
+		if self.board_action_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO board_action(board_id, user_id, object_id, action, created, deleted)
+				VALUES (%s, %s, %s, %s, %s, %s)
+				""", self.board_action_inserts)
 		if self.follow_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO follow(user_id, follower_id, created, deleted)

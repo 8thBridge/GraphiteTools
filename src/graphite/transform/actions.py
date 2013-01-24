@@ -9,8 +9,9 @@ class ActionsSerializer(AbstractTransformer):
 
 	def handle(self, node_type, id, node):
 		user_id = node.get("id")
-		boards = node.get("boards", {})
-		for board_id, actions in boards.iteritems():
+		user_boards = node.get("user_boards", {})
+		brand_boards = node.get("brand_boards", {})
+		for board_id, actions in user_boards.items() + brand_boards.items():
 			for action in actions:
 				action_name = action.get("name")
 				result = {
@@ -19,7 +20,7 @@ class ActionsSerializer(AbstractTransformer):
 					"uid": user_id,
 					"action": action_name,
 					"oid": action.get("object"),
-					"created": action.get("created"),
+					"created": action["created"],
 					"deleted": action.get("deleted")
 				}
 				if self.transform:
