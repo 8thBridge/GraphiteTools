@@ -44,6 +44,8 @@ TABLES.append(('object',
 	"  `url` varchar(512),"
 	"  `image` varchar(512),"
 	"  `title` varchar(512),"
+	"  `description` varchar(512),"
+	"  `price` varchar(20),"
 	"  `ts` TIMESTAMP,"
 	"  PRIMARY KEY (`id`)"
 	")")
@@ -173,7 +175,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.friend_inserts.append((id, friend))
 
 	def object_insert(self, id, node):
-		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("updated", "")))
+		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("description"), node.get("price"), node.get("updated", "")))
 
 	def action_insert(self, id, node):
 		self.action_inserts.append((node["uid"], node["oid"], node["action"], node["created"], node.get("deleted")))
@@ -202,8 +204,8 @@ class MySQLOutput(AbstractOutputFormat):
 			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
 		if self.object_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO object(id, url, image, title, ts)
-				VALUES (%s, %s, %s, %s, %s)
+				REPLACE INTO object(id, url, image, title, description, price, ts)
+				VALUES (%s, %s, %s, %s, %s, %s, %s)
 				""", self.object_inserts)
 		if self.action_inserts:
 			self.cursor.executemany("""
