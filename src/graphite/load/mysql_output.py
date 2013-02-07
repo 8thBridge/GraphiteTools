@@ -51,6 +51,15 @@ TABLES.append(('object',
 	")")
 )
 
+TABLES.append(('object_tag',
+	"CREATE TABLE IF NOT EXISTS `object_tag` ("
+	"  `object_id` CHAR(24) NOT NULL,"
+	"  `tag` varchar(512) NOT NULL,"
+	"  `is_user_tag` BIT NOT NULL,"
+	"  UNIQUE (`object_id`, `tag`)"
+	")")
+)
+
 TABLES.append(('action',
 	"CREATE TABLE IF NOT EXISTS `action` ("
 	"  `user_id` CHAR(24) NOT NULL,"
@@ -127,6 +136,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.user_inserts = []
 		self.friend_inserts = []
 		self.object_inserts = []
+		self.object_tag_inserts = []
 		self.action_inserts = []
 		self.board_inserts = []
 		self.board_object_inserts = []
@@ -149,6 +159,8 @@ class MySQLOutput(AbstractOutputFormat):
 				self.friend_edge_insert(id, friend)
 		elif node_type is NODE_TYPE_OBJECT:
 			self.object_insert(id, node)
+			for tag in node.get("tags", []):
+				self.object_tag_insert(id, tag)
 		elif node_type is NODE_TYPE_ACTION:
 			if "board_id" in node:
 				self.board_action_insert(id, node)
@@ -176,6 +188,9 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def object_insert(self, id, node):
 		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("description"), node.get("price"), node.get("updated", "")))
+
+	def object_tag_insert(self, id, node):
+		self.object_tag_inserts.append((id, node["en"], node["ns"] == "user"))
 
 	def action_insert(self, id, node):
 		self.action_inserts.append((node["uid"], node["oid"], node["action"], node["created"], node.get("deleted")))
@@ -207,6 +222,11 @@ class MySQLOutput(AbstractOutputFormat):
 				REPLACE INTO object(id, url, image, title, description, price, ts)
 				VALUES (%s, %s, %s, %s, %s, %s, %s)
 				""", self.object_inserts)
+		if self.object_tag_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO object_tag(object_id, tag, is_user_tag)
+				VALUES (%s, %s, %s)
+				""", self.object_tag_inserts)
 		if self.action_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO action(user_id, object_id, action, created, deleted)
