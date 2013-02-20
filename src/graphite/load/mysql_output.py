@@ -27,14 +27,17 @@ TABLES.append(('user',
 	"  `birthday` date,"
 	"  `is_user` bit,"
 	"  `ts` TIMESTAMP,"
-	"  PRIMARY KEY (`user_id`)"
+	"  PRIMARY KEY (`user_id`),"
+	"  INDEX (`facebook_id`)"
 	")")
 )
 TABLES.append(('friend',
 	"CREATE TABLE IF NOT EXISTS `friend` ("
 	"  `user_id` CHAR(24) NOT NULL,"
 	"  `friend_id` BIGINT UNSIGNED NOT NULL,"
-	"  UNIQUE (`user_id`, `friend_id`)"
+	"  `friend_user_id` CHAR(24) NULL,"
+	"  UNIQUE (`user_id`, `friend_id`),"
+	"  INDEX (`friend_id`)"
 	")")
 )
 
@@ -135,6 +138,7 @@ class MySQLOutput(AbstractOutputFormat):
 	def reset(self):
 		self.user_inserts = []
 		self.friend_inserts = []
+		self.friend_updates = []
 		self.object_inserts = []
 		self.object_tag_inserts = []
 		self.action_inserts = []
@@ -182,6 +186,7 @@ class MySQLOutput(AbstractOutputFormat):
 		except ValueError:
 			birthday = None
 		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday, node.get("is_user")))
+		self.friend_updates.append((id, fbid))
 
 	def friend_edge_insert(self, id, friend):
 		self.friend_inserts.append((id, friend))
@@ -216,7 +221,18 @@ class MySQLOutput(AbstractOutputFormat):
 				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				""", self.user_inserts)
 		if self.friend_inserts:
-			self.cursor.executemany("INSERT IGNORE INTO friend VALUES (%s, %s)", self.friend_inserts)
+			self.cursor.executemany("""
+				INSERT IGNORE INTO friend(user_id, friend_id)
+				VALUES (%s, %s)
+				""", self.friend_inserts)
+			self.cursor.executemany("""
+				UPDATE friend f, user u 
+				SET f.friend_user_id = u.user_id
+				WHERE f.friend_id = u.facebook_id
+					AND f.user_id = %s
+				""", [fi[:1] for fi in self.friend_inserts])
+		if self.friend_updates:
+			self.cursor.executemany(" UPDATE friend SET friend_user_id = %s WHERE friend_id = %s ", self.friend_updates)
 		if self.object_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO object(id, url, image, title, description, price, ts)
