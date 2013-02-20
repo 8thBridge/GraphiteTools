@@ -37,7 +37,8 @@ TABLES.append(('friend',
 	"  `friend_id` BIGINT UNSIGNED NOT NULL,"
 	"  `friend_user_id` CHAR(24) NULL,"
 	"  UNIQUE (`user_id`, `friend_id`),"
-	"  INDEX (`friend_id`)"
+	"  INDEX (`friend_id`, `friend_user_id`),"
+	"  INDEX (`friend_user_id`)"
 	")")
 )
 
@@ -225,14 +226,13 @@ class MySQLOutput(AbstractOutputFormat):
 				INSERT IGNORE INTO friend(user_id, friend_id)
 				VALUES (%s, %s)
 				""", self.friend_inserts)
-			self.cursor.executemany("""
-				UPDATE friend f, user u 
-				SET f.friend_user_id = u.user_id
-				WHERE f.friend_id = u.facebook_id
-					AND f.user_id = %s
-				""", [fi[:1] for fi in self.friend_inserts])
 		if self.friend_updates:
-			self.cursor.executemany(" UPDATE friend SET friend_user_id = %s WHERE friend_id = %s ", self.friend_updates)
+			self.cursor.executemany("""
+				UPDATE friend
+				SET friend_user_id = %s
+				WHERE friend_id = %s
+					AND friend_user_id IS NULL
+				""", self.friend_updates)
 		if self.object_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO object(id, url, image, title, description, price, ts)
@@ -269,6 +269,12 @@ class MySQLOutput(AbstractOutputFormat):
 		self.reset()
 		
 	def complete(self):
+		self.cursor.execute("""
+			UPDATE friend f, user u 
+			SET f.friend_user_id = u.user_id
+			WHERE f.friend_id = u.facebook_id
+				AND f.friend_user_id IS NULL
+			""")
 		self.conn.close()
 
 	def create_tables(self):
