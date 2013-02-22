@@ -227,6 +227,8 @@ class MySQLOutput(AbstractOutputFormat):
 				VALUES (%s, %s)
 				""", self.friend_inserts)
 		if self.friend_updates:
+			# Incrementally update friend_user_id values as much as we can while
+			# loading, so that the update in self.complete() isn't so drastic.
 			self.cursor.executemany("""
 				UPDATE friend
 				SET friend_user_id = %s

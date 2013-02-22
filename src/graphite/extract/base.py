@@ -1,9 +1,13 @@
 """
 IGAPIExtractor loads data from the 8thBridge Graphite Interest Graph API. By default all data is laoded, you can optionaly pass in an offset to only load data that is newer than the offset.
 """
-import requests
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW
+import itertools
 import sys
+
+import requests
+from requests.exceptions import ConnectionError
+
+from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW
 
 
 class IGAPIExtractor(object):
@@ -18,14 +22,22 @@ class IGAPIExtractor(object):
 		self._options.update(options)
 
 	def _load_feed(self, feed):
-		url = "http://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
+		url = "https://%(API_HOST)s/%(API_VERSION)s/igapi/%(API_KEY)s/" % self._options
 		url += feed
 		url += "?bl=%d" % self._options["limit_per_page"] 
 		return self._load_data_from(url, feed)
 
 	def _load_data_from(self, url, feed):
-		print >> sys.stderr, url, feed
-		response = requests.get(url)
+		# Make multiple attempts, since the server can sometimes timeout the 
+		# transaction after 60 seconds.
+		for i in itertools.count(start=1):
+			try:
+				print >> sys.stderr, url, feed
+				response = requests.get(url)
+				break
+			except ConnectionError:
+				if i == 5:
+					raise
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":
