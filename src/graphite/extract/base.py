@@ -7,7 +7,7 @@ import sys
 import requests
 from requests.exceptions import ConnectionError
 
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW
+from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
 
 
 class IGAPIExtractor(object):
@@ -41,7 +41,7 @@ class IGAPIExtractor(object):
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":
-				if feed in ["users", "objects", "user_boards", "brand_boards"]:
+				if feed in ["users", "objects", "user_boards", "brand_boards", "likes"]:
 					return json.get(feed, []), json.get("next")
 				elif feed == "actions":
 					return json.get("users", []), json.get("next")
@@ -73,6 +73,9 @@ class IGAPIExtractor(object):
 	def load_follows_into(self, transformer, output):
 		self._load_feed_into("curate_follows", NODE_TYPE_FOLLOW, transformer, output)
 
+	def load_likes_into(self, transformer, output):
+		self._load_feed_into("likes", NODE_TYPE_LIKE, transformer, output)
+
 	def _load_feed_into(self, feed, node_type, transformer, output):
 		print >> sys.stderr, ".. loading %s feed" % feed
 		output.start(node_type)
@@ -94,7 +97,10 @@ class IGAPIExtractor(object):
 	def process_set(self, type, data, transformer, output):
 		print >> sys.stderr, "processing %s data, %s records" % (type, len(data),)
 		for item in data:
-			id = item.get("id")
+			if type == NODE_TYPE_LIKE:
+				id = item.get("user")
+			else:
+				id = item.get("id")
 			result = transformer.handle(type, id, item)
 			if result is not None:
 				if isinstance(result, dict):
