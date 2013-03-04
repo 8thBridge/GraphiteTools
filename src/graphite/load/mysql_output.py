@@ -122,7 +122,7 @@ TABLES.append(('like',
 	"  `user_id` CHAR(24),"
 	"  `like_id` BIGINT UNSIGNED NOT NULL,"
 	"  `category` varchar(32) NOT NULL,"
-	"  `name` varchar(512) NOT NULL,"
+	"  `name` varchar(512) NULL,"
 	"  `created` TIMESTAMP NULL,"
 	"  UNIQUE (`facebook_id`, `like_id`),"
 	"  INDEX (`user_id`, `facebook_id`)"
@@ -234,7 +234,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
 		
 	def like_insert(self, id, node):
-		self.like_inserts.append((id, node["id"], node["category"], node["name"], node.get("created_time")))
+		self.like_inserts.append((id, node["id"], node["category"], node.get("name"), node.get("created_time")))
 		
 	def commit(self):
 		# MySQLdb runs *much* faster if we use executemany() to bulk insert.
