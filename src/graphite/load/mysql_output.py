@@ -163,6 +163,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.like_inserts = []
 
 	def start(self, node_type):
+		# TODO: is there a way to not update indexes, w/o dropping them completely?
 		self.conn = self.new_conn()
 		self.conn.autocommit(False)
 		self.cursor = self.conn.cursor()
