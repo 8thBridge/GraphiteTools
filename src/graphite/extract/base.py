@@ -22,6 +22,7 @@ class IGAPIExtractor(object):
 	}
 
 	def __init__(self, **options):
+		# TODO: checkpoint should be specified in load_*_into() methods, not constructor options 
 		self._options.update(options)
 
 	def _load_feed(self, feed):
