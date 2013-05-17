@@ -9,7 +9,7 @@ import urlparse
 import requests
 from requests.exceptions import ConnectionError
 
-from graphite import NODE_TYPE_USER, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
+from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
 
 
 class IGAPIExtractor(object):
@@ -51,7 +51,7 @@ class IGAPIExtractor(object):
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":
-				if feed in ["users", "objects", "user_boards", "brand_boards", "likes"]:
+				if feed in ["users", "friends", "objects", "user_boards", "brand_boards", "likes"]:
 					return json.get(feed, []), json.get("next")
 				elif feed == "actions":
 					return json.get("users", []), json.get("next")
@@ -67,6 +67,9 @@ class IGAPIExtractor(object):
 
 	def load_users_into(self, transformer, output, checkpoint_callback=None):
 		self._load_feed_into("users", NODE_TYPE_USER, transformer, output, checkpoint_callback)
+
+	def load_friends_into(self, transformer, output, checkpoint_callback=None):
+		self._load_feed_into("friends", NODE_TYPE_FRIEND, transformer, output, checkpoint_callback)
 
 	def load_objects_into(self, transformer, output, checkpoint_callback=None):
 		self._load_feed_into("objects", NODE_TYPE_OBJECT, transformer, output, checkpoint_callback)

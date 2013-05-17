@@ -5,7 +5,7 @@ from warnings import filterwarnings
 import MySQLdb
 
 from graphite.load import AbstractOutputFormat
-from graphite import NODE_TYPE_USER, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD
+from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD
 from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
 
 
@@ -177,6 +177,10 @@ class MySQLOutput(AbstractOutputFormat):
 				if isinstance(friend, dict):
 					friend = friend["id"]
 				self.friend_edge_insert(id, friend)
+		elif node_type is NODE_TYPE_FRIEND:
+			# Ignore friends right now, since we have no association to who is
+			# the original user.
+			pass
 		elif node_type is NODE_TYPE_OBJECT:
 			self.object_insert(id, node)
 			for tag in node.get("tags", []):
