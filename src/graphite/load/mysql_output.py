@@ -207,10 +207,14 @@ class MySQLOutput(AbstractOutputFormat):
 		fbid = node.get("fbid")
 		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
 		birthday = node.get("birthday")
+		# The birthday string can be in a couple different formats
 		try:
-			birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
+			birthday = datetime.strptime(birthday, "%Y-%m-%dT%H:%M:%S") if birthday else None
 		except ValueError:
-			birthday = None
+			try:
+				birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
+			except ValueError:
+				birthday = None
 		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday, node.get("is_user")))
 		self.friend_updates.append((id, fbid))
 
