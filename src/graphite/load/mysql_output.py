@@ -145,7 +145,8 @@ class MySQLOutput(AbstractOutputFormat):
 		return MySQLdb.connect(**self.conn_kwargs)
 	
 	def reset(self):
-		self.profile_inserts = []
+		self.user_profile_inserts = []
+		self.friend_profile_inserts = []
 		self.friend_inserts = []
 		self.object_inserts = []
 		self.object_tag_inserts = []
@@ -175,9 +176,7 @@ class MySQLOutput(AbstractOutputFormat):
 #						friend = friend["id"]
 					self.friend_edge_insert(facebook_id, friend_id)
 		elif node_type is NODE_TYPE_FRIEND:
-			# Ignore friends right now, since we have no association to who is
-			# the original user.
-			pass
+			self.friend_profile_insert(id, node)
 		elif node_type is NODE_TYPE_OBJECT:
 			self.object_insert(id, node)
 			for tag in node.get("tags", []):
@@ -201,9 +200,16 @@ class MySQLOutput(AbstractOutputFormat):
 					self.like_insert(id, like)
 
 	def user_profile_insert(self, id, node):
+		self.user_profile_inserts.append(self.profile_row(id, node, True))
+
+	def friend_profile_insert(self, id, node):
+		self.friend_profile_inserts.append(self.profile_row(id, node, False))
+
+	def profile_row(self, id, node, is_user):
 		fbid = node["fbid"]
-		assert node["is_user"], node
-		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
+		assert fbid, node
+		assert node["is_user"] == is_user, (is_user, node)
+		profile_image = "http://graph.facebook.com/{}/picture".format(fbid)
 		birthday = node.get("birthday")
 		# The birthday string can be in a couple different formats
 		try:
@@ -213,7 +219,7 @@ class MySQLOutput(AbstractOutputFormat):
 				birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
 			except ValueError:
 				birthday = None
-		self.profile_inserts.append((fbid, True, id, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday))
+		return fbid, is_user, id, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday
 
 	def friend_edge_insert(self, facebook_id, friend_id):
 		self.friend_inserts.append((facebook_id, friend_id))
@@ -245,11 +251,17 @@ class MySQLOutput(AbstractOutputFormat):
 	def commit(self):
 		# MySQLdb runs *much* faster if we use executemany() to bulk insert.
 		self.cursor.execute("BEGIN")
-		if self.profile_inserts:
+		if self.user_profile_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday)
 				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-				""", self.profile_inserts)
+				""", self.user_profile_inserts)
+		if self.friend_profile_inserts:
+			# Don't overwrite any existing row if friend is also a user
+			self.cursor.executemany("""
+				INSERT IGNORE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday)
+				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+				""", self.friend_profile_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("""
 				INSERT IGNORE INTO friend(facebook_id, friend_id)
