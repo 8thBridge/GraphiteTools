@@ -3,6 +3,7 @@ IGAPIExtractor loads data from the 8thBridge Graphite Interest Graph API. By def
 """
 import itertools
 import sys
+import time
 import urllib
 import urlparse
 
@@ -46,8 +47,9 @@ class IGAPIExtractor(object):
 				response = requests.get(url)
 				break
 			except ConnectionError:
-				if i == 5:
+				if i == 10:
 					raise
+				time.sleep(60)
 		if response.status_code == 200:
 			json = response.json()
 			if json.get("status") == "OK":

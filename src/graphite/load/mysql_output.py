@@ -202,7 +202,7 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def user_profile_insert(self, id, node):
 		fbid = node["fbid"]
-		assert node.get["is_user"], node
+		assert node["is_user"], node
 		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
 		birthday = node.get("birthday")
 		# The birthday string can be in a couple different formats
