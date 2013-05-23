@@ -120,7 +120,7 @@ TABLES.append(('like',
 	"  `category` varchar(32) NOT NULL,"
 	"  `name` varchar(512) NULL,"
 	"  `created` TIMESTAMP NULL,"
-	"  PRIMARY KEY (`facebook_id`, `like_id`),"
+	"  PRIMARY KEY (`facebook_id`, `like_id`)"
 	")")
 )
 
