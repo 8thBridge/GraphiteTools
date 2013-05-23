@@ -13,8 +13,9 @@ from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
 TABLES = []
 TABLES.append(('user',
 	"CREATE TABLE IF NOT EXISTS `user` ("
-	"  `user_id` CHAR(24) NOT NULL,"
+	"  `user_id` CHAR(24) NULL,"
 	"  `facebook_id` BIGINT UNSIGNED NULL,"
+	"  `is_user` bit,"
 	"  `name` varchar(128),"
 	"  `username` varchar(128),"
 	"  `first_name` varchar(128),"
@@ -25,20 +26,16 @@ TABLES.append(('user',
 	"  `email` varchar(128),"
 	"  `gender` varchar(10),"
 	"  `birthday` date,"
-	"  `is_user` bit,"
 	"  `ts` TIMESTAMP,"
-	"  PRIMARY KEY (`user_id`),"
+	"  PRIMARY KEY (`user_id`, `facebook_id`),"
 	"  INDEX (`facebook_id`)"
 	")")
 )
 TABLES.append(('friend',
 	"CREATE TABLE IF NOT EXISTS `friend` ("
-	"  `user_id` CHAR(24) NOT NULL,"
+	"  `facebook_id` BIGINT UNSIGNED NOT NULL,"
 	"  `friend_id` BIGINT UNSIGNED NOT NULL,"
-	"  `friend_user_id` CHAR(24) NULL,"
-	"  UNIQUE (`user_id`, `friend_id`),"
-	"  INDEX (`friend_id`, `friend_user_id`),"
-	"  INDEX (`friend_user_id`)"
+	"  PRIMARY KEY (`facebook_id`, `friend_id`)"
 	")")
 )
 
@@ -60,7 +57,7 @@ TABLES.append(('object_tag',
 	"  `object_id` CHAR(24) NOT NULL,"
 	"  `tag` varchar(512) NOT NULL,"
 	"  `is_user_tag` BIT NOT NULL,"
-	"  UNIQUE (`object_id`, `tag`)"
+	"  PRIMARY KEY (`object_id`, `tag`)"
 	")")
 )
 
@@ -71,7 +68,7 @@ TABLES.append(('action',
 	"  `action` varchar(32) NOT NULL,"
 	"  `created` TIMESTAMP NOT NULL,"
 	"  `deleted` TIMESTAMP NULL,"
-	"  UNIQUE (`user_id`, `object_id`, `action`)"
+	"  PRIMARY KEY (`user_id`, `object_id`, `action`)"
 	")")
 )
 
@@ -90,7 +87,7 @@ TABLES.append(('board_object',
 	"CREATE TABLE IF NOT EXISTS `board_object` ("
 	"  `board_id` CHAR(24) NOT NULL,"
 	"  `object_id` CHAR(24) NOT NULL,"
-	"  UNIQUE (`board_id`, `object_id`)"
+	"  PRIMARY KEY (`board_id`, `object_id`)"
 	")")
 )
 
@@ -100,7 +97,7 @@ TABLES.append(('follow',
 	"  `follower_id` CHAR(24) NOT NULL,"
 	"  `created` TIMESTAMP NOT NULL,"
 	"  `deleted` TIMESTAMP NULL,"
-	"  UNIQUE (`user_id`, `follower_id`)"
+	"  PRIMARY KEY (`user_id`, `follower_id`)"
 	")")
 )
 
@@ -112,20 +109,18 @@ TABLES.append(('board_action',
 	"  `action` varchar(32) NOT NULL,"
 	"  `created` TIMESTAMP NOT NULL,"
 	"  `deleted` TIMESTAMP NULL,"
-	"  UNIQUE (`board_id`, `user_id`, `object_id`, `action`)"
+	"  PRIMARY KEY (`board_id`, `user_id`, `object_id`, `action`)"
 	")")
 )
 
 TABLES.append(('like',
 	"CREATE TABLE IF NOT EXISTS `like` ("
 	"  `facebook_id` BIGINT UNSIGNED NOT NULL,"
-	"  `user_id` CHAR(24),"
 	"  `like_id` BIGINT UNSIGNED NOT NULL,"
 	"  `category` varchar(32) NOT NULL,"
 	"  `name` varchar(512) NULL,"
 	"  `created` TIMESTAMP NULL,"
-	"  UNIQUE (`facebook_id`, `like_id`),"
-	"  INDEX (`user_id`, `facebook_id`)"
+	"  PRIMARY KEY (`facebook_id`, `like_id`),"
 	")")
 )
 
@@ -152,7 +147,6 @@ class MySQLOutput(AbstractOutputFormat):
 	def reset(self):
 		self.user_inserts = []
 		self.friend_inserts = []
-		self.friend_updates = []
 		self.object_inserts = []
 		self.object_tag_inserts = []
 		self.action_inserts = []
@@ -172,11 +166,14 @@ class MySQLOutput(AbstractOutputFormat):
 	def handle(self, node_type, id, node):
 		if node_type is NODE_TYPE_USER:
 			self.user_insert(id, node)
-			for friend in node.get("friends", []):
-				# Where are these values coming from?
-				if isinstance(friend, dict):
-					friend = friend["id"]
-				self.friend_edge_insert(id, friend)
+			friends = node.get("friends")
+			if friends:
+				facebook_id = node["fbid"]
+				for friend_id in friends:
+					# Where are these values coming from?
+#					if isinstance(friend, dict):
+#						friend = friend["id"]
+					self.friend_edge_insert(facebook_id, friend_id)
 		elif node_type is NODE_TYPE_FRIEND:
 			# Ignore friends right now, since we have no association to who is
 			# the original user.
@@ -216,10 +213,9 @@ class MySQLOutput(AbstractOutputFormat):
 			except ValueError:
 				birthday = None
 		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday, node.get("is_user")))
-		self.friend_updates.append((id, fbid))
 
-	def friend_edge_insert(self, id, friend):
-		self.friend_inserts.append((id, friend))
+	def friend_edge_insert(self, facebook_id, friend_id):
+		self.friend_inserts.append((facebook_id, friend_id))
 
 	def object_insert(self, id, node):
 		self.object_inserts.append((id, node.get("url", ""), node.get("image", ""), node.get("title", ""), node.get("description"), node.get("price"), node.get("updated", "")))
@@ -255,18 +251,9 @@ class MySQLOutput(AbstractOutputFormat):
 				""", self.user_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("""
-				INSERT IGNORE INTO friend(user_id, friend_id)
+				INSERT IGNORE INTO friend(facebook_id, friend_id)
 				VALUES (%s, %s)
 				""", self.friend_inserts)
-		if self.friend_updates:
-			# Incrementally update friend_user_id values as much as we can while
-			# loading, so that the update in self.complete() isn't so drastic.
-			self.cursor.executemany("""
-				UPDATE friend
-				SET friend_user_id = %s
-				WHERE friend_id = %s
-					AND friend_user_id IS NULL
-				""", self.friend_updates)
 		if self.object_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO object(id, url, image, title, description, price, ts)
@@ -308,18 +295,6 @@ class MySQLOutput(AbstractOutputFormat):
 		self.reset()
 		
 	def complete(self):
-		self.cursor.execute("""
-			UPDATE friend f, user u 
-			SET f.friend_user_id = u.user_id
-			WHERE f.friend_id = u.facebook_id
-				AND f.friend_user_id IS NULL
-			""")
-		self.cursor.execute("""
-			UPDATE `like` l, user u 
-			SET l.user_id = u.user_id
-			WHERE l.facebook_id = u.facebook_id
-				AND l.user_id IS NULL
-			""")
 		self.conn.close()
 
 	def create_tables(self):
