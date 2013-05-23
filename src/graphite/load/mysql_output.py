@@ -11,11 +11,11 @@ from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
 
 # TODO: create a meta schema object that can be shared by all outputs
 TABLES = []
-TABLES.append(('user',
-	"CREATE TABLE IF NOT EXISTS `user` ("
-	"  `user_id` CHAR(24) NULL,"
-	"  `facebook_id` BIGINT UNSIGNED NULL,"
+TABLES.append(('profile',
+	"CREATE TABLE IF NOT EXISTS `profile` ("
+	"  `facebook_id` BIGINT UNSIGNED NOT NULL,"
 	"  `is_user` bit,"
+	"  `user_id` CHAR(24) NULL,"
 	"  `name` varchar(128),"
 	"  `username` varchar(128),"
 	"  `first_name` varchar(128),"
@@ -27,8 +27,8 @@ TABLES.append(('user',
 	"  `gender` varchar(10),"
 	"  `birthday` date,"
 	"  `ts` TIMESTAMP,"
-	"  PRIMARY KEY (`user_id`, `facebook_id`),"
-	"  INDEX (`facebook_id`)"
+	"  PRIMARY KEY (`facebook_id`),"
+	"  INDEX (`user_id`)"
 	")")
 )
 TABLES.append(('friend',
@@ -145,7 +145,7 @@ class MySQLOutput(AbstractOutputFormat):
 		return MySQLdb.connect(**self.conn_kwargs)
 	
 	def reset(self):
-		self.user_inserts = []
+		self.profile_inserts = []
 		self.friend_inserts = []
 		self.object_inserts = []
 		self.object_tag_inserts = []
@@ -165,7 +165,7 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def handle(self, node_type, id, node):
 		if node_type is NODE_TYPE_USER:
-			self.user_insert(id, node)
+			self.user_profile_insert(id, node)
 			friends = node.get("friends")
 			if friends:
 				facebook_id = node["fbid"]
@@ -200,8 +200,9 @@ class MySQLOutput(AbstractOutputFormat):
 				for like in likes:
 					self.like_insert(id, like)
 
-	def user_insert(self, id, node):
-		fbid = node.get("fbid")
+	def user_profile_insert(self, id, node):
+		fbid = node["fbid"]
+		assert node.get["is_user"], node
 		profile_image = "http://graph.facebook.com/{}/picture".format(fbid) if fbid is not None else None
 		birthday = node.get("birthday")
 		# The birthday string can be in a couple different formats
@@ -212,7 +213,7 @@ class MySQLOutput(AbstractOutputFormat):
 				birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
 			except ValueError:
 				birthday = None
-		self.user_inserts.append((id, fbid, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday, node.get("is_user")))
+		self.profile_inserts.append((fbid, True, id, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday))
 
 	def friend_edge_insert(self, facebook_id, friend_id):
 		self.friend_inserts.append((facebook_id, friend_id))
@@ -244,11 +245,11 @@ class MySQLOutput(AbstractOutputFormat):
 	def commit(self):
 		# MySQLdb runs *much* faster if we use executemany() to bulk insert.
 		self.cursor.execute("BEGIN")
-		if self.user_inserts:
+		if self.profile_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO user(user_id, facebook_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday, is_user)
+				REPLACE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday)
 				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-				""", self.user_inserts)
+				""", self.profile_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("""
 				INSERT IGNORE INTO friend(facebook_id, friend_id)
