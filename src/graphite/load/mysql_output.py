@@ -208,7 +208,6 @@ class MySQLOutput(AbstractOutputFormat):
 	def profile_row(self, id, node, is_user):
 		fbid = node["fbid"]
 		assert fbid, node
-		assert node["is_user"] == is_user, (is_user, node)
 		profile_image = "http://graph.facebook.com/{}/picture".format(fbid)
 		birthday = node.get("birthday")
 		# The birthday string can be in a couple different formats
