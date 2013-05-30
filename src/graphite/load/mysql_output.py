@@ -203,7 +203,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.user_profile_inserts.append(self.profile_row(id, node, True))
 
 	def friend_profile_insert(self, id, node):
-		self.friend_profile_inserts.append(self.profile_row(id, node, False))
+		self.friend_profile_inserts.append(self.profile_row(None, node, False))
 
 	def profile_row(self, id, node, is_user):
 		fbid = node["fbid"]
@@ -218,7 +218,8 @@ class MySQLOutput(AbstractOutputFormat):
 				birthday = datetime.strptime(birthday, "%m/%d/%Y") if birthday else None
 			except ValueError:
 				birthday = None
-		return fbid, is_user, id, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday
+		ts = datetime.utcfromtimestamp(float(node["ts"]))
+		return fbid, is_user, id, node.get("name"), node.get("username"), node.get("first_name"), node.get("last_name"), profile_image, node.get("hometown"), node.get("location.name"), node.get("email"), node.get("gender"), birthday, ts
 
 	def friend_edge_insert(self, facebook_id, friend_id):
 		self.friend_inserts.append((facebook_id, friend_id))
@@ -252,14 +253,14 @@ class MySQLOutput(AbstractOutputFormat):
 		self.cursor.execute("BEGIN")
 		if self.user_profile_inserts:
 			self.cursor.executemany("""
-				REPLACE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday)
-				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+				REPLACE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday, ts)
+				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				""", self.user_profile_inserts)
 		if self.friend_profile_inserts:
 			# Don't overwrite any existing row if friend is also a user
 			self.cursor.executemany("""
-				INSERT IGNORE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday)
-				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+				INSERT IGNORE INTO profile(facebook_id, is_user, user_id, name, username, first_name, last_name, profile_image, hometown, location, email, gender, birthday, ts)
+				VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 				""", self.friend_profile_inserts)
 		if self.friend_inserts:
 			self.cursor.executemany("""
