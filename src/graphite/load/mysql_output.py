@@ -240,7 +240,9 @@ class MySQLOutput(AbstractOutputFormat):
 		self.board_object_inserts.append((id, object_id))
 
 	def board_action_insert(self, id, node):
-		self.board_action_inserts.append((node["board_id"], node["uid"], node.get("oid"), node["action"], node["created"], node.get("deleted")))
+		# Set oid to an empty string if it is missing or None
+		oid = node.get("oid") or ""
+		self.board_action_inserts.append((node["board_id"], node["uid"], oid, node["action"], node["created"], node.get("deleted")))
 
 	def follow_insert(self, id, node):
 		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
