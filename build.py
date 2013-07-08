@@ -2,4 +2,4 @@
 import jenkins_builder as jb
 
 
-jb.create_deploy("src/graphite")
+jb.create_deploy("graphite")
