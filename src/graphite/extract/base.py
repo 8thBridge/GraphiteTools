@@ -133,4 +133,4 @@ class IGAPIExtractor(object):
 	@staticmethod
 	def extract_checkpoint(next_url):
 		query = urlparse.urlparse(next_url).query
-		return urlparse.parse_qs(query)["after"]
+		return str(urlparse.parse_qs(query)["after"][0])
