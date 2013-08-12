@@ -6,7 +6,7 @@ import MySQLdb
 
 from graphite.load import AbstractOutputFormat
 from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD
-from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
+from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_USER_LIKE, NODE_TYPE_LIKE
 
 
 # TODO: create a meta schema object that can be shared by all outputs
@@ -113,6 +113,17 @@ TABLES.append(('board_action',
 	")")
 )
 
+TABLES.append(('user_like',
+	"CREATE TABLE IF NOT EXISTS `user_like` ("
+	"  `facebook_id` BIGINT UNSIGNED NOT NULL,"
+	"  `like_id` BIGINT UNSIGNED NOT NULL,"
+	"  `category` varchar(32) NOT NULL,"
+	"  `name` varchar(512) NULL,"
+	"  `created` TIMESTAMP NULL,"
+	"  PRIMARY KEY (`facebook_id`, `like_id`)"
+	")")
+)
+
 TABLES.append(('like',
 	"CREATE TABLE IF NOT EXISTS `like` ("
 	"  `facebook_id` BIGINT UNSIGNED NOT NULL,"
@@ -155,6 +166,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.board_object_inserts = []
 		self.follow_inserts = []
 		self.board_action_inserts = []
+		self.user_like_inserts = []
 		self.like_inserts = []
 
 	def start(self, node_type):
@@ -192,6 +204,12 @@ class MySQLOutput(AbstractOutputFormat):
 				self.board_object_insert(id, object_id)
 		elif node_type is NODE_TYPE_FOLLOW:
 			self.follow_insert(id, node)
+		elif node_type is NODE_TYPE_USER_LIKE:
+			# "likes" will exist in node, but may have a value of None
+			likes = node["likes"]
+			if likes:
+				for like in likes:
+					self.user_like_insert(id, like)
 		elif node_type is NODE_TYPE_LIKE:
 			# "likes" will exist in node, but may have a value of None
 			likes = node["likes"]
@@ -247,6 +265,9 @@ class MySQLOutput(AbstractOutputFormat):
 	def follow_insert(self, id, node):
 		self.follow_inserts.append((id, node.get("follower_id", ""), node.get("created"), node.get("deleted")))
 		
+	def user_like_insert(self, id, node):
+		self.user_like_inserts.append((id, node["id"], node["category"], node.get("name"), node.get("created_time")))
+		
 	def like_insert(self, id, node):
 		self.like_inserts.append((id, node["id"], node["category"], node.get("name"), node.get("created_time")))
 		
@@ -301,6 +322,11 @@ class MySQLOutput(AbstractOutputFormat):
 				REPLACE INTO follow(user_id, follower_id, created, deleted)
 				VALUES (%s, %s, %s, %s)
 				""", self.follow_inserts)
+		if self.user_like_inserts:
+			self.cursor.executemany("""
+				REPLACE INTO `user_like`(facebook_id, like_id, category, name, created)
+				VALUES (%s, %s, %s, %s, %s)
+				""", self.user_like_inserts)
 		if self.like_inserts:
 			self.cursor.executemany("""
 				REPLACE INTO `like`(facebook_id, like_id, category, name, created)

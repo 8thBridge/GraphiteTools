@@ -10,7 +10,7 @@ import urlparse
 import requests
 from requests.exceptions import ConnectionError
 
-from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW, NODE_TYPE_LIKE
+from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_ACTION, NODE_TYPE_OBJECT, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD, NODE_TYPE_FOLLOW, NODE_TYPE_USER_LIKE
 
 
 class IGAPIExtractor(object):
@@ -90,8 +90,8 @@ class IGAPIExtractor(object):
 	def load_follows_into(self, transformer, output, checkpoint_callback=None):
 		self._load_feed_into("curate_follows", NODE_TYPE_FOLLOW, transformer, output, checkpoint_callback)
 
-	def load_likes_into(self, transformer, output, checkpoint_callback=None):
-		self._load_feed_into("user_likes", NODE_TYPE_LIKE, transformer, output, checkpoint_callback)
+	def load_user_likes_into(self, transformer, output, checkpoint_callback=None):
+		self._load_feed_into("user_likes", NODE_TYPE_USER_LIKE, transformer, output, checkpoint_callback)
 
 	def _load_feed_into(self, feed, node_type, transformer, output, checkpoint_callback):
 		print >> sys.stderr, ".. loading %s feed" % feed
@@ -118,7 +118,7 @@ class IGAPIExtractor(object):
 	def process_set(self, type, data, transformer, output):
 		print >> sys.stderr, "processing %s data, %s records" % (type, len(data),)
 		for item in data:
-			if type == NODE_TYPE_LIKE:
+			if type == NODE_TYPE_USER_LIKE:
 				id = item.get("user")
 			else:
 				id = item.get("id")
