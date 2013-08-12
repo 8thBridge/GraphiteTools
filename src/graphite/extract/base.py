@@ -57,6 +57,8 @@ class IGAPIExtractor(object):
 					return json.get(feed, []), json.get("next")
 				elif feed == "actions":
 					return json.get("users", []), json.get("next")
+				elif feed == "user_likes":
+					return json.get("likes", []), json.get("next")
 				elif feed == "curate_follows":
 					return json.get("follows", []), json.get("next")
 				else:
@@ -89,7 +91,7 @@ class IGAPIExtractor(object):
 		self._load_feed_into("curate_follows", NODE_TYPE_FOLLOW, transformer, output, checkpoint_callback)
 
 	def load_likes_into(self, transformer, output, checkpoint_callback=None):
-		self._load_feed_into("likes", NODE_TYPE_LIKE, transformer, output, checkpoint_callback)
+		self._load_feed_into("user_likes", NODE_TYPE_LIKE, transformer, output, checkpoint_callback)
 
 	def _load_feed_into(self, feed, node_type, transformer, output, checkpoint_callback):
 		print >> sys.stderr, ".. loading %s feed" % feed
