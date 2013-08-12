@@ -100,7 +100,9 @@ class IGAPIExtractor(object):
 		self.process_set(node_type, data, transformer, output)
 		pages_loaded = 0
 		pages_to_load = self._options.get("pages_to_load", 0)
-		while next and len(data)>0:
+		prev_next = None
+		while next and next != prev_next:
+			prev_next = next
 			print >> sys.stderr, "loading another page"
 			if checkpoint_callback:
 				checkpoint_callback(self.extract_checkpoint(next))
