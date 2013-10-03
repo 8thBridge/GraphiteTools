@@ -5,8 +5,9 @@ from warnings import filterwarnings
 import MySQLdb
 
 from graphite.load import AbstractOutputFormat
-from graphite import NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_OBJECT, NODE_TYPE_ACTION, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD
-from graphite import NODE_TYPE_FOLLOW, NODE_TYPE_USER_LIKE, NODE_TYPE_LIKE
+from graphite import (NODE_TYPE_USER, NODE_TYPE_FRIEND, NODE_TYPE_OBJECT,
+	NODE_TYPE_ACTION, NODE_TYPE_SALE, NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD,
+	NODE_TYPE_FOLLOW, NODE_TYPE_USER_LIKE, NODE_TYPE_LIKE)
 
 
 # TODO: create a meta schema object that can be shared by all outputs
@@ -198,6 +199,8 @@ class MySQLOutput(AbstractOutputFormat):
 				self.board_action_insert(id, node)
 			else:
 				self.action_insert(id, node)
+		elif node_type is NODE_TYPE_SALE:
+			self.sale_insert(id, node)
 		elif node_type in [NODE_TYPE_USER_BOARD, NODE_TYPE_BRAND_BOARD]:
 			self.board_insert(id, node,  node_type is NODE_TYPE_BRAND_BOARD)
 			for object_id in node.get("object_ids", []):
@@ -250,6 +253,9 @@ class MySQLOutput(AbstractOutputFormat):
 
 	def action_insert(self, id, node):
 		self.action_inserts.append((node["uid"], node["oid"], node["action"], node["created"], node.get("deleted")))
+
+	def sale_insert(self, id, node):
+		self.action_inserts.append((node["user"], node["id"], "__sale__", node["created"], None))
 
 	def board_insert(self, id, node, is_brand_board):
 		self.board_inserts.append((id, is_brand_board, node["name"], node.get("user_id"), node.get("created"), node.get("deleted")))
