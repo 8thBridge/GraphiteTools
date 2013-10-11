@@ -293,7 +293,7 @@ class MySQLOutput(AbstractOutputFormat):
 		self.sale_inserts.append((node["id"], node["user"], node.get("order_number"), price(node["total"]), node["created"]))
 
 	def sale_object_insert(self, id, object):
-		self.sale_object_inserts.append((id, object["id"], object["price"], object["qty"]))
+		self.sale_object_inserts.append((id, object["id"], price(object["price"]), object["qty"]))
 
 	def board_insert(self, id, node, is_brand_board):
 		self.board_inserts.append((id, is_brand_board, node["name"], node.get("user_id"), node.get("created"), node.get("deleted")))
