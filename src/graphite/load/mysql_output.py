@@ -76,7 +76,7 @@ TABLES.append(('action',
 
 TABLES.append(('sale',
 	"CREATE TABLE IF NOT EXISTS `sale` ("
-	"  `id` CHAR(24) NOT NULL,"
+	"  `sale_id` CHAR(24) NOT NULL,"
 	"  `user_id` CHAR(24) NOT NULL,"
 	"  `order_number` VARCHAR(32),"
 	"  `total` decimal(9,2) NOT NULL,"
@@ -351,7 +351,7 @@ class MySQLOutput(AbstractOutputFormat):
 				""", self.action_inserts)
 		if self.sale_inserts:
 			self.cursor.executemany("""
-				INSERT IGNORE INTO sale(id, user_id, order_number, total, ts)
+				INSERT IGNORE INTO sale(sale_id, user_id, order_number, total, ts)
 				VALUES (%s, %s, %s, %s, %s)
 				""", self.sale_inserts)
 		if self.sale_object_inserts:
